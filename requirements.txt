@@ -1,0 +1,8 @@
+numpy
+Pillow
+torch
+torchvision
+opencv-python
+wxPython
+pyttsx3
+requests
