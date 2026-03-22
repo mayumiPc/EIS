@@ -6,3 +6,4 @@ opencv-python
 wxPython
 requests
 pyodbc
+pyinstaller

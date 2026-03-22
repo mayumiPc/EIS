@@ -29,6 +29,7 @@ from .access_catalog import (
 from .catalog_import_access import import_access_to_sqlite
 from .catalog_sqlite import InstallationCatalog
 from .catalog_template import CatalogImportError, has_stuck_pending_catalog
+from .infer_register_dialog import show_infer_register_dialog
 from .controller import EISController
 from .user_training_reset import reset_user_training_artifacts
 
@@ -71,6 +72,22 @@ class EISFrame(wx.Frame):
                 "predicted": "推論メーカー",
                 "probabilities": "推論確率",
                 "infer_title": "推論結果",
+                "infer_register_title": "推論結果とカタログ登録",
+                "reg_no_catalog": "内部カタログがありません。先に Access から取り込み・再起動のうえ、ここから登録できます。",
+                "reg_field_maker": "メーカー（必須）",
+                "reg_maker_infer_hint": "推論クラス: {cls} ／ 日本語候補: {ja}",
+                "reg_field_kind": "種類",
+                "reg_field_pref": "都道府県",
+                "reg_field_city": "市区町村",
+                "reg_field_site": "設置場所の名称（必須）",
+                "reg_field_media": "動画・画像・音声（パス）",
+                "reg_field_use": "用途",
+                "reg_field_load": "積載",
+                "reg_field_capacity": "定員",
+                "reg_required_hint": "※ メーカーと設置場所の名称は必須です。プルダウンは既存カタログの値候補です（自由入力可）。",
+                "reg_save": "カタログに登録",
+                "reg_close": "閉じる",
+                "reg_saved_ok": "カタログに登録しました（ID: {id}）。",
                 "train_title": "学習管理",
                 "source_mode": "取り込み方式",
                 "file_mode": "ファイル指定",
@@ -197,6 +214,22 @@ class EISFrame(wx.Frame):
                 "predicted": "Predicted manufacturer",
                 "probabilities": "Inference probabilities",
                 "infer_title": "Inference result",
+                "infer_register_title": "Inference & register to catalog",
+                "reg_no_catalog": "No internal catalog yet. Import from Access and restart the app before registering here.",
+                "reg_field_maker": "Manufacturer (required)",
+                "reg_maker_infer_hint": "Inference class: {cls} / Suggested (JA): {ja}",
+                "reg_field_kind": "Type",
+                "reg_field_pref": "Prefecture",
+                "reg_field_city": "City",
+                "reg_field_site": "Site name (required)",
+                "reg_field_media": "Media path",
+                "reg_field_use": "Use (DB)",
+                "reg_field_load": "Load",
+                "reg_field_capacity": "Capacity",
+                "reg_required_hint": "Manufacturer and site name are required. Dropdowns suggest values from the catalog (you can type freely).",
+                "reg_save": "Save to catalog",
+                "reg_close": "Close",
+                "reg_saved_ok": "Saved to catalog (ID: {id}).",
                 "train_title": "Training Management",
                 "source_mode": "Import mode",
                 "file_mode": "File",
@@ -657,10 +690,6 @@ class EISFrame(wx.Frame):
             s = s[:497] + "..."
         self._training_status_set(progress=s)
 
-    def _fmt_prob_line(self, probs: dict[str, float]) -> str:
-        parts = [f"{k}: {v:.3f}" for k, v in sorted(probs.items(), key=lambda x: x[1], reverse=True)]
-        return ", ".join(parts)
-
     def _run_job(self, cmd: list[str], title: str, epochs: int = 10, *, job_id: str | None = None) -> None:
         if self.job_running:
             wx.MessageBox(self._t("job_running"), self._t("train_title"), wx.OK | wx.ICON_INFORMATION, self)
@@ -844,6 +873,23 @@ class EISFrame(wx.Frame):
             self.path_lbl.SetLabel(self.selected_path)
         wx.CallAfter(self._after_modal_file_dialog)
 
+    def _distinct_values_for_register(self, column: str) -> list[str]:
+        if not self._catalog:
+            return []
+        try:
+            return self._catalog.distinct_values(column)
+        except Exception:
+            self.logger.exception("distinct for register %s", column)
+            return []
+
+    def _after_catalog_registration(self) -> None:
+        if self._catalog:
+            try:
+                self._refresh_catalog_filter_choices()
+            except Exception:
+                self.logger.exception("refresh catalog after registration")
+            self._run_catalog_query()
+
     def on_infer(self, _event: wx.CommandEvent) -> None:
         if not self.selected_path or not Path(self.selected_path).exists():
             wx.MessageBox(self._t("invalid_file"), self._t("infer"), wx.OK | wx.ICON_WARNING, self)
@@ -851,12 +897,19 @@ class EISFrame(wx.Frame):
         try:
             p = self.controller.infer(self.selected_path, model_type=self._current_model())
             self.last_probabilities = dict(p.probabilities)
-            msg = (
-                f"{self._t('predicted')}: {p.manufacturer}\n\n"
-                f"{self._t('probabilities')}:\n{self._fmt_prob_line(dict(p.probabilities))}"
-            )
             self.logger.info("infer %s -> %s", self.selected_path, p.manufacturer)
-            wx.MessageBox(msg, self._t("infer_title"), wx.OK | wx.ICON_INFORMATION, self)
+            catalog_ready = self._catalog is not None and catalog_sqlite_is_valid()
+            show_infer_register_dialog(
+                self,
+                manufacturer=p.manufacturer,
+                probabilities=p.probabilities,
+                media_path=self.selected_path,
+                class_keys=self.class_keys,
+                translate=self._t,
+                catalog_ready=catalog_ready,
+                get_distinct_values=self._distinct_values_for_register,
+                on_registered=self._after_catalog_registration,
+            )
         except Exception as exc:
             self.logger.exception("infer")
             wx.MessageBox(f"{self._t('job_fail')}: {exc}", self._t("infer"), wx.OK | wx.ICON_ERROR, self)

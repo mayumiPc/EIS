@@ -6,7 +6,7 @@
   - file: `py -3.11 tools/train_user_model.py --source-mode file --inputs "C:\path\img.jpg" --label toshiba`
   - zip: `py -3.11 tools/train_user_model.py --source-mode zip --inputs "C:\path\data.zip"`
 
-The main view is the **Installation catalog** (internal SQLite, imported from an Access `.accdb`). Changing filters refreshes the list (no search button). Recommendation UI, read-only log panel, and free-text use-case input were removed; inference shows a dialog; details go to `EIS.log`.
+The main view is the **Installation catalog** (internal SQLite, imported from an Access `.accdb`). Changing filters refreshes the list (no search button). After **Run inference**, a dialog shows the result and lets you **fill template fields (manufacturer, type, location, site name, media path, etc.) and save a row** into the internal catalog (manufacturer and site name required). Save is disabled until a valid internal catalog exists. Recommendation UI and similar were removed; details go to `EIS.log`.
 
 ## Initialize menu (reset user training)
 
