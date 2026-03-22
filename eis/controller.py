@@ -30,6 +30,10 @@ class EISController:
         self._engines[key] = eng
         return eng
 
+    def discard_user_engine_cache(self) -> None:
+        """ユーザー学習モデルファイル削除後など、メモリ上の user エンジンを破棄する。"""
+        self._engines.pop("user", None)
+
     def infer(self, file_path: str, model_type: str = "base") -> PredictionResult:
         p = Path(file_path)
         if not p.exists():

@@ -1,4 +1,52 @@
+# --- 既存 ---
 .api
-*.log
 *.zip
 test
+
+# --- Python 実行時 ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+
+# --- ログ（EIS.log など *.log で除外） ---
+*.log
+
+# --- 初回学習まわり（必ずリポジトリに残す・ここでは無視しない） ---
+# - dataset/ および dataset_legacy/ … 初回学習用画像配置（コミット推奨）
+# - models/eis_classifier_base.pt … 初回学習モデル
+# - models/eis_classifier.pt … 互換用の旧ファイル名があれば同様にコミット対象
+
+# --- 学習・UI 操作で都度生成されるデータ（コミット不要） ---
+# ユーザー追加学習の取り込み先・zip 展開一時
+dataset_user/
+# ベース＋ユーザー画像をマージした学習用コピー（再生成可能）
+dataset_combined_user/
+# train_base_model が dataset から組み立てるビルド用コピー（再生成可能）
+dataset_base/
+
+# --- モデル: ユーザー追加学習の出力のみ除外（初回モデルは追跡する） ---
+models/eis_classifier_user.pt
+
+# --- 推論（動画）時に抽出される一時フレーム ---
+tmp_frames/
+
+# --- OS・エディタ（任意） ---
+.DS_Store
+Thumbs.db
+.idea/
+
+# --- 内部カタログ（.accdb から生成・再生成可能）---
+data/eis_installation_catalog.sqlite
+data/eis_installation_catalog.sqlite.tmp
+data/eis_installation_catalog.sqlite.next
+data/eis_installation_catalog.sqlite.next.invalid
+
+# --- Access 元データベース（アプリ実行時は内部 SQLite のみ使用。再取り込み用は各自バックアップ）---
+*.accdb
+*.mdb
+*.laccdb
