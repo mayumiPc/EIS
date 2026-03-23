@@ -11,6 +11,8 @@ import threading
 
 import wx
 
+from constants import APP_FULL_NAME, APP_VERSION
+
 from .access_catalog import (
     COL_CAPACITY,
     COL_CITY,
@@ -41,7 +43,7 @@ class EISFrame(wx.Frame):
     def __init__(self) -> None:
         super().__init__(parent=None, title="EIS", size=(1000, 780))
         self.controller = EISController()
-        self.app_version = "1.0.0"
+        self.app_version = APP_VERSION
         self.language = "ja"
         self.log_level = "ERROR"
         self.logger = self._setup_logger()
@@ -61,7 +63,7 @@ class EISFrame(wx.Frame):
         self._catalog_rows: list[dict] = []
         self.trans = {
             "ja": {
-                "title": "Elevator Intelligence System",
+                "title": APP_FULL_NAME,
                 "language": "言語",
                 "model": "モデル",
                 "model_base": "初回学習モデル",
@@ -108,7 +110,7 @@ class EISFrame(wx.Frame):
                 "menu_log_debug": "DEBUG",
                 "menu_version": "バージョン情報",
                 "version_title": "バージョン情報",
-                "version_message": "Elevator Intelligence System\nVersion: {version}",
+                "version_message": f"{APP_FULL_NAME}\nVersion: {{version}}",
                 "log_level_changed": "ログ出力モードを {level} に変更しました。",
                 "menu_file": "ファイル",
                 "menu_update_catalog_db": "カタログDBの更新…",
@@ -201,7 +203,7 @@ class EISFrame(wx.Frame):
                 "reset_list_empty": "（なし）",
             },
             "en": {
-                "title": "Elevator Intelligence System",
+                "title": APP_FULL_NAME,
                 "language": "Language",
                 "model": "Model",
                 "model_base": "Base model",
@@ -248,7 +250,7 @@ class EISFrame(wx.Frame):
                 "menu_log_debug": "DEBUG",
                 "menu_version": "Version Info",
                 "version_title": "Version Info",
-                "version_message": "Elevator Intelligence System\nVersion: {version}",
+                "version_message": f"{APP_FULL_NAME}\nVersion: {{version}}",
                 "log_level_changed": "Log output mode changed to {level}.",
                 "menu_file": "File",
                 "menu_update_catalog_db": "Update catalog database…",

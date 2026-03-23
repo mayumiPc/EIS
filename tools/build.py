@@ -13,7 +13,10 @@ from pathlib import Path
 TOOLS_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = TOOLS_DIR.parent
 ENTRY_SCRIPT = PROJECT_ROOT / "tools" / "eis_bundle_entry.py"
-APP_NAME = "eis"
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from constants import APP_NAME  # noqa: E402
 
 # Output directory names (always created under current working directory).
 DIST_DIR_NAME = "dist"
