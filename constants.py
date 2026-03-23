@@ -11,3 +11,7 @@ APP_FULL_NAME = "Elevator Intelligence System"
 # バージョン（例: 1.0.0）
 APP_VERSION = "1.0.0"
 
+# コピーライト表記（例: 2026, mayumiPc）
+COPYRIGHT_YEAR = "2026, mayumiPc"
+# 最終更新年（例: 2026）
+LAST_UPDATED_YEAR = "2026"
