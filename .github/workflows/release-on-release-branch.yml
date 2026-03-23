@@ -1,0 +1,90 @@
+name: Release Build (release branch)
+
+on:
+  push:
+    branches:
+      - release
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Read app metadata
+        id: meta
+        shell: pwsh
+        run: |
+          $appName = python -c "from constants import APP_NAME; print(APP_NAME)"
+          $appFullName = python -c "from constants import APP_FULL_NAME; print(APP_FULL_NAME)"
+          $appVersion = python -c "from constants import APP_VERSION; print(APP_VERSION)"
+          $tag = "v$appVersion-$env:GITHUB_RUN_NUMBER"
+          "app_name=$appName" >> $env:GITHUB_OUTPUT
+          "app_full_name=$appFullName" >> $env:GITHUB_OUTPUT
+          "app_version=$appVersion" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Build application
+        shell: pwsh
+        env:
+          CIMODE: "true"
+        run: |
+          python tools/build.py
+
+      - name: Verify build artifact
+        shell: pwsh
+        run: |
+          $artifact = "dist/${{ steps.meta.outputs.app_name }}.zip"
+          if (-not (Test-Path $artifact)) {
+            Write-Error "Build artifact not found: $artifact"
+            exit 1
+          }
+
+      - name: Generate checksums
+        shell: pwsh
+        run: |
+          $artifact = "dist/${{ steps.meta.outputs.app_name }}.zip"
+          $hash = (Get-FileHash -Algorithm SHA256 $artifact).Hash.ToLower()
+          "$hash  ${{ steps.meta.outputs.app_name }}.zip" | Out-File -FilePath "dist/checksums.txt" -Encoding ascii
+
+      - name: Create GitHub Release and upload zip
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.app_full_name }} v${{ steps.meta.outputs.app_version }}
+          generate_release_notes: true
+          files: |
+            dist/${{ steps.meta.outputs.app_name }}.zip
+            dist/checksums.txt
+
+      - name: Notify Slack on failure
+        if: failure()
+        shell: pwsh
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_NOTIFY_ALERT }}
+        run: |
+          $repo = "${{ github.repository }}"
+          $sha = "${{ github.sha }}"
+          $runId = "${{ github.run_id }}"
+          $runUrl = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          $workflow = "${{ github.workflow }}"
+          $msg = "*Build failed* in `${repo}``n• workflow: $workflow`n• sha: $sha`n• run: $runUrl"
+
+          $payload = @{ text = $msg } | ConvertTo-Json -Compress
+          Invoke-RestMethod -Method Post -Uri $env:SLACK_WEBHOOK_URL -ContentType "application/json" -Body $payload
