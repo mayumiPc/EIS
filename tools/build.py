@@ -53,7 +53,9 @@ def build_add_data_args() -> list[str]:
     for rel_dir in PACKAGE_DATA_DIRS:
         src = PROJECT_ROOT / rel_dir
         if src.exists():
-            args += ["--add-data", f"{src}{sep}{rel_dir}"]
+            # `public/xxx` を `dist/eis/xxx` のようにフラット配置する。
+            # 複数指定できるよう、指定ディレクトリ名自体は dest に含めない。
+            args += ["--add-data", f"{src}{sep}."] 
     return args
 
 

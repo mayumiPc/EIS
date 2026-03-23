@@ -11,7 +11,7 @@ import threading
 
 import wx
 
-from constants import APP_FULL_NAME, APP_VERSION
+from constants import APP_FULL_NAME, APP_NAME, APP_VERSION
 
 from .access_catalog import (
     COL_CAPACITY,
@@ -109,6 +109,9 @@ class EISFrame(wx.Frame):
                 "menu_log_error": "ERROR",
                 "menu_log_debug": "DEBUG",
                 "menu_version": "バージョン情報",
+                "menu_check_update": "アップデートを確認…",
+                "updater_missing_title": "アップデータ",
+                "updater_missing_msg": "現在、アップデータを利用することができません。",
                 "version_title": "バージョン情報",
                 "version_message": f"{APP_FULL_NAME}\nVersion: {{version}}",
                 "log_level_changed": "ログ出力モードを {level} に変更しました。",
@@ -249,6 +252,9 @@ class EISFrame(wx.Frame):
                 "menu_log_error": "ERROR",
                 "menu_log_debug": "DEBUG",
                 "menu_version": "Version Info",
+                "menu_check_update": "Check for updates…",
+                "updater_missing_title": "Updater",
+                "updater_missing_msg": "The updater is not available right now.",
                 "version_title": "Version Info",
                 "version_message": f"{APP_FULL_NAME}\nVersion: {{version}}",
                 "log_level_changed": "Log output mode changed to {level}.",
@@ -578,6 +584,7 @@ class EISFrame(wx.Frame):
         self.settings_menu.AppendSubMenu(self.log_mode_menu, "Log output mode")
 
         self.menu_reset_user_training = self.init_menu.Append(wx.ID_ANY, "Reset user training")
+        self.menu_check_update_item = self.help_menu.Append(wx.ID_ANY, "Check for updates")
         self.menu_version_item = self.help_menu.Append(wx.ID_ANY, "Version")
         self.menu_bar.Append(self.file_menu, "File")
         self.menu_bar.Append(self.settings_menu, "Settings")
@@ -589,6 +596,7 @@ class EISFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_set_log_error, self.menu_log_error_item)
         self.Bind(wx.EVT_MENU, self.on_set_log_debug, self.menu_log_debug_item)
         self.Bind(wx.EVT_MENU, self.on_menu_reset_user_training, self.menu_reset_user_training)
+        self.Bind(wx.EVT_MENU, self.on_menu_check_update, self.menu_check_update_item)
         self.Bind(wx.EVT_MENU, self.on_show_version, self.menu_version_item)
         self.menu_log_error_item.Check(True)
 
@@ -602,6 +610,7 @@ class EISFrame(wx.Frame):
         self.menu_log_error_item.SetItemLabel(self._t("menu_log_error"))
         self.menu_log_debug_item.SetItemLabel(self._t("menu_log_debug"))
         self.menu_reset_user_training.SetItemLabel(self._t("menu_reset_user_training_danger"))
+        self.menu_check_update_item.SetItemLabel(self._t("menu_check_update"))
         self.menu_version_item.SetItemLabel(self._t("menu_version"))
 
     def _set_training_controls(self, enabled: bool) -> None:
@@ -956,6 +965,36 @@ class EISFrame(wx.Frame):
             wx.OK | wx.ICON_INFORMATION,
             self,
         )
+
+    def on_menu_check_update(self, _event: wx.CommandEvent) -> None:
+        root = install_root()
+        candidates = (
+            root / "updater" / "updater.exe",
+            root / "public" / "updater" / "updater.exe",
+        )
+        updater_exe = next((p for p in candidates if p.is_file()), None)
+        if updater_exe is None:
+            wx.MessageBox(
+                self._t("updater_missing_msg"),
+                self._t("updater_missing_title"),
+                wx.OK | wx.ICON_WARNING,
+                self,
+            )
+            return
+
+        # updater 側に対象ディレクトリと現在バージョンを渡す（updater.exe 単体実行は想定しない）。
+        cmd = [
+            str(updater_exe),
+            "--target-dir",
+            str(root),
+            "--current-version",
+            str(self.app_version),
+            "--parent-pid",
+            str(os.getpid()),
+            "--app-name",
+            APP_NAME,
+        ]
+        subprocess.Popen(cmd, cwd=str(root))
 
     def on_menu_reset_user_training(self, _event: wx.CommandEvent) -> None:
         if self.job_running:

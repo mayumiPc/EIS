@@ -57,5 +57,7 @@ build/spec_staging/
 build/smoke_run/
 build/artifacts/
 dist/eis/
+# アップデーター本体はユーザーが別途用意し、リポジトリには含めない想定
+public/updater/
 # PyInstaller が誤ってルートに落とした警告（preclean で削除するが念のため）
 /warn-*.txt
