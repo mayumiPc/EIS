@@ -50,3 +50,12 @@ data/eis_installation_catalog.sqlite.next.invalid
 *.accdb
 *.mdb
 *.laccdb
+
+# --- PyInstaller / 配布ビルド（sample_build.py / tools/build.py）---
+build/pyi_work/
+build/spec_staging/
+build/smoke_run/
+build/artifacts/
+dist/eis/
+# PyInstaller が誤ってルートに落とした警告（preclean で削除するが念のため）
+/warn-*.txt

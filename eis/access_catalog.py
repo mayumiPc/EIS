@@ -37,7 +37,10 @@ AccessCatalogError = CatalogError
 
 def find_project_accdb(root: Path | None = None) -> Path:
     """任意: プロジェクト直下の .accdb を探す（取り込み元候補のヒント用）。"""
-    root = root or Path(__file__).resolve().parents[1]
+    if root is None:
+        from eis.paths import install_root
+
+        root = install_root()
     found = sorted(root.glob("*.accdb"))
     if not found:
         raise FileNotFoundError("プロジェクト直下に .accdb がありません（例: 設置場所.accdb）。")

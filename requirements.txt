@@ -6,4 +6,4 @@ opencv-python
 wxPython
 requests
 pyodbc
-pyinstaller
+pyinstaller>=6.5.0

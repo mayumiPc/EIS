@@ -40,7 +40,12 @@ def reset_user_training_artifacts(project_root: Path | None = None) -> UserTrain
     ユーザー学習用モデルと、その学習で使うコピーデータのみ削除する。
     models/eis_classifier_base.pt, dataset/, dataset_legacy/, *.accdb 等は削除しない。
     """
-    root = (project_root or Path(__file__).resolve().parents[1]).resolve()
+    if project_root is None:
+        from eis.paths import install_root
+
+        root = install_root().resolve()
+    else:
+        root = project_root.resolve()
     deleted: list[str] = []
     skipped: list[str] = []
     errors: list[str] = []

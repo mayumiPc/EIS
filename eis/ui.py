@@ -31,6 +31,7 @@ from .catalog_sqlite import InstallationCatalog
 from .catalog_template import CatalogImportError, has_stuck_pending_catalog
 from .infer_register_dialog import show_infer_register_dialog
 from .controller import EISController
+from .paths import install_root
 from .user_training_reset import reset_user_training_artifacts
 
 
@@ -49,7 +50,7 @@ class EISFrame(wx.Frame):
         self.last_probabilities: dict[str, float] | None = None
         self.user_training_inputs: list[str] = []
         self.job_running = False
-        self._active_job_id: str | None = None  # train_user_model | update_base_model など（状態表示用）
+        self._active_job_id: str | None = None  # train_user_model など（状態表示用）
         self._job_lock = threading.Lock()
         self._job_process: subprocess.Popen[str] | None = None
         self._job_user_cancelled = False
@@ -96,7 +97,6 @@ class EISFrame(wx.Frame):
                 "select_inputs": "学習用データを選択",
                 "selected": "選択件数",
                 "train_user": "ユーザー追加学習モデルを作成",
-                "update_base": "初回学習モデルを更新(置換)",
                 "job_running": "別のジョブが実行中です。",
                 "no_inputs": "学習用入力が選択されていません。",
                 "job_done": "ジョブ完了",
@@ -163,7 +163,6 @@ class EISFrame(wx.Frame):
                 "state_idle_train_ready": "【状態】待機中 — 学習用に {n} 件選択済み。「ユーザー追加学習モデルを作成」で開始できます。",
                 "state_idle_infer_ready": "【状態】待機中 — 推論用メディアを選択済み。「推論を実行」できます。",
                 "state_running_user": "【実行中】ユーザー追加学習モデルを作成中です。下のボタンは無効です。完了までお待ちください。",
-                "state_running_base": "【実行中】初回学習モデルの更新中です。下のボタンは無効です。完了までお待ちください。",
                 "state_running_generic": "【実行中】バックグラウンド処理中: {name}（操作はブロックされています）",
                 "train_log_heading": "学習ステータス（各項目は固定行。値のみ更新されます）",
                 "train_log_sr_help": "学習ジョブ名・実行状態・プログレスの3行です。Tabでフォーカスし、行を移動して確認できます。",
@@ -238,7 +237,6 @@ class EISFrame(wx.Frame):
                 "select_inputs": "Select training inputs",
                 "selected": "Selected",
                 "train_user": "Build user model",
-                "update_base": "Update/replace base model",
                 "job_running": "Another job is running.",
                 "no_inputs": "No training inputs selected.",
                 "job_done": "Job Completed",
@@ -304,7 +302,6 @@ class EISFrame(wx.Frame):
                 "state_idle_train_ready": "[Status] Idle — {n} training path(s) selected. Press “Build user model” to start.",
                 "state_idle_infer_ready": "[Status] Idle — media selected. Press “Run inference”.",
                 "state_running_user": "[Running] Building user model. Training controls are disabled until finished.",
-                "state_running_base": "[Running] Updating base model. Training controls are disabled until finished.",
                 "state_running_generic": "[Running] Background job: {name} (UI blocked for this section)",
                 "train_log_heading": "Training status (fixed rows; values update in place)",
                 "train_log_sr_help": "Three rows: job name, run state, and progress. Tab into the list and use arrow keys.",
@@ -449,9 +446,6 @@ class EISFrame(wx.Frame):
         self.btn_train_user = wx.Button(panel, label="")
         self.btn_train_user.Bind(wx.EVT_BUTTON, self.on_train_user_model)
         root.Add(self.btn_train_user, 0, wx.ALL, 4)
-        self.btn_update_base = wx.Button(panel, label="")
-        self.btn_update_base.Bind(wx.EVT_BUTTON, self.on_update_base_model)
-        root.Add(self.btn_update_base, 0, wx.ALL, 4)
         self.app_state_lbl = wx.StaticText(panel, label="")
         self.app_state_lbl.SetForegroundColour(wx.Colour(180, 255, 200))
         self.app_state_lbl.SetFont(wx.Font(11, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
@@ -493,7 +487,7 @@ class EISFrame(wx.Frame):
         logger = logging.getLogger("eic")
         logger.handlers.clear()
         logger.setLevel(logging.ERROR)
-        log_path = Path(__file__).resolve().parents[1] / "EIS.log"
+        log_path = install_root() / "EIS.log"
         handler = logging.FileHandler(log_path, encoding="utf-8")
         handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
         logger.addHandler(handler)
@@ -548,7 +542,6 @@ class EISFrame(wx.Frame):
         self.btn_sel_inputs.SetLabel(self._t("select_inputs"))
         self.sel_count_lbl.SetLabel(f"{self._t('selected')}: {len(self.user_training_inputs)}")
         self.btn_train_user.SetLabel(self._t("train_user"))
-        self.btn_update_base.SetLabel(self._t("update_base"))
         self.train_log_heading_lbl.SetLabel(self._t("train_log_heading"))
         self.training_status_list.SetHelpText(self._t("train_log_sr_help"))
         self._training_status_update_row_labels_i18n()
@@ -611,7 +604,7 @@ class EISFrame(wx.Frame):
 
     def _set_training_controls(self, enabled: bool) -> None:
         """学習まわりの有効/無効。有効化時は zip モードならラベル(Choice)だけ無効のままにする。"""
-        train_btns = (self.btn_sel_inputs, self.btn_train_user, self.btn_update_base)
+        train_btns = (self.btn_sel_inputs, self.btn_train_user)
         if enabled:
             for w in train_btns:
                 w.Enable(True)
@@ -627,9 +620,6 @@ class EISFrame(wx.Frame):
             jid = self._active_job_id or ""
             if jid == "train_user_model":
                 self.app_state_lbl.SetLabel(self._t("state_running_user"))
-                self.app_state_lbl.SetForegroundColour(wx.Colour(255, 210, 120))
-            elif jid == "update_base_model":
-                self.app_state_lbl.SetLabel(self._t("state_running_base"))
                 self.app_state_lbl.SetForegroundColour(wx.Colour(255, 210, 120))
             else:
                 self.app_state_lbl.SetLabel(self._t("state_running_generic").format(name=jid or "?"))
@@ -718,7 +708,7 @@ class EISFrame(wx.Frame):
                 pat = re.compile(r"\[epoch\s+(\d+)\]")
                 p = subprocess.Popen(
                     cmd,
-                    cwd=str(Path(__file__).resolve().parents[1]),
+                    cwd=str(install_root()),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
@@ -939,14 +929,6 @@ class EISFrame(wx.Frame):
             cmd += ["--label", label_arg]
         self._run_job(cmd, "train_user_model", epochs=10, job_id="train_user_model")
 
-    def on_update_base_model(self, _event: wx.CommandEvent) -> None:
-        self._run_job(
-            ["py", "-3.11", "tools/update_base_model.py"],
-            "update_base_model",
-            epochs=10,
-            job_id="update_base_model",
-        )
-
     def on_set_log_error(self, _event: wx.CommandEvent) -> None:
         self._set_log_level("ERROR")
         wx.MessageBox(
@@ -998,7 +980,7 @@ class EISFrame(wx.Frame):
                 != wx.YES
             ):
                 return
-        root = Path(__file__).resolve().parents[1]
+        root = install_root()
         result = reset_user_training_artifacts(root)
         self.controller.discard_user_engine_cache()
         self.user_training_inputs = []
@@ -1122,7 +1104,7 @@ class EISFrame(wx.Frame):
 
     def _spawn_restart_process(self) -> None:
         """同じインタプリタ・引数で EIS を起動し直す（run_ui.py 想定）。"""
-        project_root = Path(__file__).resolve().parents[1]
+        project_root = install_root()
         if getattr(sys, "frozen", False):
             executable = str(Path(sys.executable).resolve())
             args = [executable, *sys.argv[1:]]
@@ -1389,7 +1371,7 @@ class EISFrame(wx.Frame):
         if not s:
             return
         norm = s.replace("\\", "/")
-        root = Path(__file__).resolve().parents[1]
+        root = install_root()
         for p in (Path(s), Path(norm)):
             if p.is_absolute() and p.exists() and p.is_file():
                 self.selected_path = str(p.resolve())

@@ -1,10 +1,39 @@
 # EIS Quick Notes
 
-- Run UI: `py -3.11 run_ui.py`
+- Run UI: `py -3.11 run_ui.py` or `py -3.11 -m eis` (same entry)
+- **Frozen exe**: from repo root run `py -3.11 tools/build.py` → `dist/eis/eis.exe` (see “Distribution build” below)
 - Update/replace base model: `py -3.11 tools/update_base_model.py`
 - Train user model:
   - file: `py -3.11 tools/train_user_model.py --source-mode file --inputs "C:\path\img.jpg" --label toshiba`
-  - zip: `py -3.11 tools/train_user_model.py --source-mode zip --inputs "C:\path\data.zip"`
+  - zip: `py -3.11 tools/train_user_model.py --source-mode zip --inputs "C:\path\data.zip"` (see folder layout below)
+
+## User training: file mode vs zip (how labels work)
+
+The UI **import mode** is either **File** or **Zip**. Labeling rules differ:
+
+| Mode | How the class (manufacturer-like training label) is chosen | UI “Label” dropdown |
+|------|--------------------------------------------------------------|---------------------|
+| **File** | Every selected image shares **one** class. The combo maps to `--label` (English class or catalog-backed label). | **Enabled** (required) |
+| **Zip** | After extraction, **folder names inside the archive** define classes. Each top-level folder under the zip should match one of the **seven English class names**: `mitsubishi`, `hitachi`, `otis`, `toshiba`, `thyssenkrupp`, `westinghouse`, `montgomery`. If none match, behavior depends on CLI `--label` fallback; the **UI does not pass `--label` in zip mode**. | **Disabled** by design (labels come from zip directory layout) |
+
+- For **zip bulk import**, structure archives like `data.zip` → `toshiba/image001.jpg` under a **class-named folder**. A flat zip of images only may import nothing or fail class assignment from the UI path—use **folder-per-class** or **file mode + label**.
+- From the **command line** only, you can add `--label` with zip mode as a fallback when the archive has no class folders (see `import_zip_mode` in `tools/train_user_model.py`).
+
+## Distribution build (PyInstaller → `eis.exe`)
+
+- Output **executable** is **`eis.exe`** (onedir under `dist/eis/`). **Do not add root `eis.py`** (shadows the `eis` package).
+- **Canonical entry**: `eis/__main__.py`. PyInstaller bootstrap: **`tools/eis_bundle_entry.py`** (`ENTRY_SCRIPT` in `tools/build_constants.py`).
+- **Flow** (modeled after **`samplebuild.py`**, implemented in **`sample_build.py`**):
+  1. **Remove `dist/` and `build/`** entirely (clean previous output).
+  2. Run **PyInstaller with a small CLI**: `--log-level=ERROR`, `--workpath build/pyi_work`, `--specpath build/spec_staging`, then **delete the generated `.spec`**.
+  3. **Copy into `dist/eis/`** after the build: paths in **`PACKAGE_CONTAIN_ITEMS`** in `tools/build_constants.py` (default: `tools`, `models`, `train.py`).
+  4. **ZIP** under `build/artifacts/` (`eis_<TAG>_<timestamp>.zip`; `TAG` from env `TAG_NAME`, default `snapshot`).
+- **Commands**: from repo root, **`py -3.11 sample_build.py`** or **`py -3.11 tools/build.py`** (same behavior).
+- **Smoke tests**: **only on GitHub Actions** by default; **`EIS_FORCE_BUILD_SMOKE=1`** forces them locally. Lite vs full: `EIS_SMOKE_FULL` as before.
+- **CI Python**: prefer **`EIS_PY_LAUNCH=python`** after `setup-python` (see `.github/workflows/build-eis.yml`).
+- **Runtime paths**: `install_root()` is the folder with `eis.exe`; `tools/`, `models/`, `train.py` come from **post-build copy**.
+- **Console**: `PYINSTALLER_CONSOLE` or **`EIS_PYI_CONSOLE=0|1`**.
+- Training from the UI expects **`py -3.11 tools/...`** on the machine; **no Python on the target** may break training buttons.
 
 The main view is the **Installation catalog** (internal SQLite, imported from an Access `.accdb`). Changing filters refreshes the list (no search button). After **Run inference**, a dialog shows the result and lets you **fill template fields (manufacturer, type, location, site name, media path, etc.) and save a row** into the internal catalog (manufacturer and site name required). Save is disabled until a valid internal catalog exists. Recommendation UI and similar were removed; details go to `EIS.log`.
 

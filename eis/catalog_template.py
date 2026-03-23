@@ -68,7 +68,9 @@ CATALOG_SQLITE_REL = Path("data/eis_installation_catalog.sqlite")
 
 
 def project_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    from eis.paths import install_root
+
+    return install_root()
 
 
 def default_catalog_sqlite_path() -> Path:

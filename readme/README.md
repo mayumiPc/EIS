@@ -1,10 +1,39 @@
 # EIS 実装メモ
 
-- UI起動: `py -3.11 run_ui.py`
+- UI起動: `py -3.11 run_ui.py` または `py -3.11 -m eis`（同一エントリ）
+- **配布用 exe**: リポジトリルートで `py -3.11 tools/build.py` → `dist/eis/eis.exe`（詳細は下記「配布ビルド」）
 - baseモデル更新(置換): `py -3.11 tools/update_base_model.py`
 - ユーザー追加学習:
   - file: `py -3.11 tools/train_user_model.py --source-mode file --inputs "C:\path\img.jpg" --label toshiba`
-  - zip: `py -3.11 tools/train_user_model.py --source-mode zip --inputs "C:\path\data.zip"`
+  - zip: `py -3.11 tools/train_user_model.py --source-mode zip --inputs "C:\path\data.zip"`（フォルダ構造の説明は下記）
+
+## ユーザー追加学習：ファイル指定と zip 一括（ラベルの付け方）
+
+UI の **取り込み方式** は「ファイル指定」と「zip 一括」の2つです。**ラベル（クラス）の決め方が異なる**ため、次を押さえてください。
+
+| 方式 | ラベル（メーカー相当クラス）の決め方 | UI の「ラベル」コンボ |
+|------|----------------------------------------|------------------------|
+| **ファイル指定** | 選択した画像は **すべて同じクラス**。コンボで選んだ英語クラス名（またはカタログ由来の表記）が `--label` として渡る。 | **有効**（必ず選ぶ） |
+| **zip 一括** | zip 展開後、**アーカイブ内のフォルダ名**でクラスが決まる。各フォルダ名は学習用の **英語7クラス名**（`mitsubishi`, `hitachi`, `otis`, `toshiba`, `thyssenkrupp`, `westinghouse`, `montgomery`）と一致させる。該当フォルダが無い場合の挙動は CLI の `--label` フォールバックに依存（UI から zip 時は `--label` を付けない）。 | **無効**（意図的。zip 側のディレクトリでラベル付けする設計） |
+
+- **zip で一括する場合**は、例として `data.zip` の中に `toshiba/img001.jpg` のように **クラス名フォルダの下に画像を置く**形を想定しています。単一フォルダに画像だけ詰めた zip では、UI からの学習ではクラスが定まらず取り込みに失敗しうるため、**フォルダ分け**か **ファイル指定モード＋ラベル選択**を使ってください。
+- コマンドラインから zip を渡すときだけ、`tools/train_user_model.py` の `--label` を併用すると、クラス名フォルダが無い zip に対するフォールバックとして使えます（詳細は `tools/train_user_model.py` の `import_zip_mode`）。
+
+## 配布ビルド（PyInstaller → `eis.exe`）
+
+- **成果物名**は **`eis.exe`**（onedir: `dist/eis/`）。ルートに **`eis.py` を置かない**（パッケージ `eis` と衝突するため）。
+- **公式エントリ**: `eis/__main__.py`（`python -m eis`）。PyInstaller 用は **`tools/eis_bundle_entry.py`**（`build_constants.ENTRY_SCRIPT`）。
+- **ビルドの流れ**（別プロジェクト由来の **`samplebuild.py`** を参考に **`sample_build.py`** で実装）:
+  1. **`dist/` と `build/` を丸ごと削除**（前回ビルドの掃除）
+  2. **PyInstaller を最小 CLI** で実行: `--log-level=ERROR`、`--workpath build/pyi_work`、`--specpath build/spec_staging`、**`.spec` はビルド後に削除**
+  3. **`dist/eis/` へ後からコピー**（`--add-data` で詰めすぎない）: `PACKAGE_CONTAIN_ITEMS`（既定: `tools`, `models`, `train.py`）は **`tools/build_constants.py`** で変更
+  4. **`build/artifacts/` に ZIP**（`eis_<TAG>_<日時>.zip`、`TAG` は環境変数 `TAG_NAME`、未設定は `snapshot`）
+- **実行コマンド**: リポジトリルートで **`py -3.11 sample_build.py`** または **`py -3.11 tools/build.py`**（中身は同じ）。
+- **スモーク**: **GitHub Actions のみ自動**（`EIS_FORCE_BUILD_SMOKE=1` でローカル強制）。lite / full は `EIS_SMOKE_FULL`（従来どおり）。
+- **GHA の Python**: `EIS_PY_LAUNCH=python` を推奨（`.github/workflows/build-eis.yml`）。
+- **実行時パス**: フリーズ後は `eis/paths.install_root()` が **exe と同じフォルダ**。`tools/`・`models/`・`train.py` は **ビルド後コピー**で同梱。
+- **コンソール**: `PYINSTALLER_CONSOLE` または **`EIS_PYI_CONSOLE=0|1`**。
+- UI の学習ジョブは **`py -3.11 tools/...`** 前提のため、配布先に Python が無いと学習ボタンは動かない場合があります。
 
 画面の中心は **設置カタログ**（内部 SQLite。元データは Access `.accdb` から取り込み）です。プルダウンを変えると一覧が自動更新されます。  
 **推論を実行** 後は、推論結果に加え **テンプレート列（メーカー・種類・所在地・設置名称・メディアパス等）を入力して内部カタログへ登録**できるダイアログが開きます（メーカーと設置名称は必須）。内部カタログ未作成時は登録ボタンは無効です。
