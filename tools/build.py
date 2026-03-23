@@ -1,6 +1,6 @@
 """
-Run PyInstaller for EIS, then zip the onedir output under tools/dist/.
-Set CIMODE=true|false (case-insensitive) to record CI vs local builds in logs.
+Run PyInstaller for EIS, then zip the onedir output.
+Set CIMODE=true|false (case-insensitive) to record CI mode in logs.
 """
 from __future__ import annotations
 
@@ -12,11 +12,17 @@ from pathlib import Path
 
 TOOLS_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = TOOLS_DIR.parent
-DIST_DIR = TOOLS_DIR / "dist"
-BUILD_DIR = TOOLS_DIR / "build"
 ENTRY_SCRIPT = PROJECT_ROOT / "tools" / "eis_bundle_entry.py"
 APP_NAME = "eis"
-ZIP_STEM = DIST_DIR / APP_NAME  # -> tools/dist/eis.zip
+
+# Output directory names (always created under current working directory).
+DIST_DIR_NAME = "dist"
+BUILD_DIR_NAME = "build"
+
+# Package data directories (relative to project root). Keep iterable for extensibility.
+PACKAGE_DATA_DIRS: tuple[str, ...] = (
+    "public",
+)
 
 
 def parse_cimode() -> bool:
@@ -31,8 +37,25 @@ def parse_cimode() -> bool:
     return False
 
 
-def pyinstaller_command() -> list[str]:
-    return [
+def resolve_output_dirs() -> tuple[Path, Path]:
+    run_root = Path.cwd().resolve()
+    dist_dir = run_root / DIST_DIR_NAME
+    build_dir = run_root / BUILD_DIR_NAME
+    return dist_dir, build_dir
+
+
+def build_add_data_args() -> list[str]:
+    args: list[str] = []
+    sep = os.pathsep
+    for rel_dir in PACKAGE_DATA_DIRS:
+        src = PROJECT_ROOT / rel_dir
+        if src.exists():
+            args += ["--add-data", f"{src}{sep}{rel_dir}"]
+    return args
+
+
+def pyinstaller_command(dist_dir: Path, build_dir: Path) -> list[str]:
+    cmd = [
         sys.executable,
         "-m",
         "PyInstaller",
@@ -45,46 +68,50 @@ def pyinstaller_command() -> list[str]:
         "--noupx",
         "--noconfirm",
         "--distpath",
-        str(DIST_DIR),
+        str(dist_dir),
         "--workpath",
-        str(BUILD_DIR),
+        str(build_dir),
         "--hidden-import",
         "pyodbc",
     ]
+    cmd += build_add_data_args()
+    return cmd
 
 
-def zip_artifact() -> Path:
-    bundle_dir = DIST_DIR / APP_NAME
+def zip_artifact(dist_dir: Path) -> Path:
+    bundle_dir = dist_dir / APP_NAME
     if not bundle_dir.is_dir():
         print(f"Expected build output directory not found: {bundle_dir}", flush=True)
         sys.exit(1)
-    zip_path = Path(str(ZIP_STEM) + ".zip")
+    zip_stem = dist_dir / APP_NAME
+    zip_path = Path(str(zip_stem) + ".zip")
     if zip_path.is_file():
         zip_path.unlink()
-    shutil.make_archive(str(ZIP_STEM), "zip", root_dir=str(DIST_DIR), base_dir=APP_NAME)
+    shutil.make_archive(str(zip_stem), "zip", root_dir=str(dist_dir), base_dir=APP_NAME)
     return zip_path
 
 
 def main() -> None:
+    dist_dir, build_dir = resolve_output_dirs()
     cimode = parse_cimode()
-    print(f"CIMode: {cimode}", flush=True)
     print("Starting build.", flush=True)
+    print(f"CIMode: {cimode}", flush=True)
     print("Building...", flush=True)
 
     if not ENTRY_SCRIPT.is_file():
         print(f"Entry script not found: {ENTRY_SCRIPT}", flush=True)
         sys.exit(1)
 
-    DIST_DIR.mkdir(parents=True, exist_ok=True)
-    BUILD_DIR.mkdir(parents=True, exist_ok=True)
+    dist_dir.mkdir(parents=True, exist_ok=True)
+    build_dir.mkdir(parents=True, exist_ok=True)
 
-    proc = subprocess.run(pyinstaller_command(), cwd=str(PROJECT_ROOT))
+    proc = subprocess.run(pyinstaller_command(dist_dir, build_dir), cwd=str(PROJECT_ROOT))
     if proc.returncode != 0:
         sys.exit(proc.returncode)
 
     print("Build complete.", flush=True)
     print("Zipping...", flush=True)
-    zip_path = zip_artifact()
+    zip_path = zip_artifact(dist_dir)
     print(f"Created archive: {zip_path}", flush=True)
     print("Build finished!", flush=True)
 
