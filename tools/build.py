@@ -94,8 +94,8 @@ def zip_artifact(dist_dir: Path) -> Path:
 def main() -> None:
     dist_dir, build_dir = resolve_output_dirs()
     cimode = parse_cimode()
-    print("Starting build.", flush=True)
-    print(f"CIMode: {cimode}", flush=True)
+    print(f"Starting build for {APP_NAME}.", flush=True)
+    print(f"CI mode: {cimode}", flush=True)
     print("Building...", flush=True)
 
     if not ENTRY_SCRIPT.is_file():
@@ -105,14 +105,20 @@ def main() -> None:
     dist_dir.mkdir(parents=True, exist_ok=True)
     build_dir.mkdir(parents=True, exist_ok=True)
 
-    proc = subprocess.run(pyinstaller_command(dist_dir, build_dir), cwd=str(PROJECT_ROOT))
+    proc = subprocess.run(
+        pyinstaller_command(dist_dir, build_dir),
+        cwd=str(PROJECT_ROOT),
+        capture_output=True,
+        text=True,
+    )
     if proc.returncode != 0:
+        if proc.stderr:
+            print(proc.stderr, flush=True)
         sys.exit(proc.returncode)
 
-    print("Build complete.", flush=True)
+    print(f"Build process Success (exit code: {proc.returncode})", flush=True)
     print("Zipping...", flush=True)
-    zip_path = zip_artifact(dist_dir)
-    print(f"Created archive: {zip_path}", flush=True)
+    zip_artifact(dist_dir)
     print("Build finished!", flush=True)
 
 
