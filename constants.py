@@ -15,3 +15,6 @@ APP_VERSION = "1.0.0"
 COPYRIGHT_YEAR = "2026, mayumiPc"
 # 最終更新年（例: 2026）
 LAST_UPDATED_YEAR = "2026"
+
+# GitHub Releases 配信先（owner/repo）
+UPDATE_REPO = "mayumiPc/eis"

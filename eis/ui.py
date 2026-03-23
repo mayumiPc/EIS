@@ -11,7 +11,7 @@ import threading
 
 import wx
 
-from constants import APP_FULL_NAME, APP_NAME, APP_VERSION
+from constants import APP_FULL_NAME, APP_NAME, APP_VERSION, UPDATE_REPO
 
 from .access_catalog import (
     COL_CAPACITY,
@@ -993,6 +993,8 @@ class EISFrame(wx.Frame):
             str(os.getpid()),
             "--app-name",
             APP_NAME,
+            "--repo",
+            UPDATE_REPO,
         ]
         subprocess.Popen(cmd, cwd=str(root))
 
