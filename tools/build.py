@@ -26,6 +26,7 @@ BUILD_DIR_NAME = "build"
 PACKAGE_DATA_DIRS: tuple[str, ...] = (
     "public",
 )
+PAYLOAD_STAGING_DIR = "__pkg_payloads__"
 
 
 def parse_cimode() -> bool:
@@ -53,9 +54,9 @@ def build_add_data_args() -> list[str]:
     for rel_dir in PACKAGE_DATA_DIRS:
         src = PROJECT_ROOT / rel_dir
         if src.exists():
-            # `public/xxx` を `dist/eis/xxx` のようにフラット配置する。
-            # 複数指定できるよう、指定ディレクトリ名自体は dest に含めない。
-            args += ["--add-data", f"{src}{sep}."] 
+            # いったん識別可能なステージング配下へ同梱し、ビルド後にルートへ昇格させる。
+            # これにより PACKAGE_DATA_DIRS に追加した任意のディレクトリを一律処理できる。
+            args += ["--add-data", f"{src}{sep}{PAYLOAD_STAGING_DIR}/{rel_dir}"]
     return args
 
 
@@ -81,6 +82,37 @@ def pyinstaller_command(dist_dir: Path, build_dir: Path) -> list[str]:
     ]
     cmd += build_add_data_args()
     return cmd
+
+
+def promote_packaged_payloads(bundle_dir: Path) -> None:
+    """
+    PACKAGE_DATA_DIRS に含まれる同梱物を `_internal` からルートへ昇格する。
+    PyInstaller 本体の内部配置は維持し、指定した payload のみ外へ出す。
+    """
+    internal_dir = bundle_dir / "_internal"
+    if not internal_dir.is_dir():
+        return
+
+    staged_root = internal_dir / PAYLOAD_STAGING_DIR
+    if not staged_root.is_dir():
+        return
+
+    for rel_dir in PACKAGE_DATA_DIRS:
+        staged_dir = staged_root / rel_dir
+        if not staged_dir.exists():
+            continue
+        for item in staged_dir.iterdir():
+            dest = bundle_dir / item.name
+            if dest.exists():
+                if dest.is_dir():
+                    shutil.rmtree(dest)
+                else:
+                    dest.unlink()
+            shutil.move(str(item), str(dest))
+
+    # ステージング配下を掃除
+    if staged_root.exists():
+        shutil.rmtree(staged_root, ignore_errors=True)
 
 
 def zip_artifact(dist_dir: Path) -> Path:
@@ -122,6 +154,7 @@ def main() -> None:
         sys.exit(proc.returncode)
 
     print(f"Build process Success (exit code: {proc.returncode})", flush=True)
+    promote_packaged_payloads(dist_dir / APP_NAME)
     print("Zipping...", flush=True)
     zip_artifact(dist_dir)
     print("Build finished!", flush=True)
